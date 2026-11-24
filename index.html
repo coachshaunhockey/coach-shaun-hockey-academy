@@ -3,91 +3,133 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thank You - Coach Shaun Hockey Academy</title>
-
+  <title>Booking Confirmation | Coach Shaun Hockey Academy</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
       margin: 0;
       padding: 30px 15px;
+      font-family: Arial, sans-serif;
+      background: #f3f5f8;
       color: #222;
     }
-
     .container {
-      max-width: 600px;
+      max-width: 650px;
       margin: 40px auto;
       background: white;
       padding: 35px;
       border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     }
-
-    .success {
-      font-size: 60px;
-      color: #17324d;
-    }
-
-    h1 {
-      color: #17324d;
-    }
-
-    .details {
-      text-align: left;
-      background: #f4f6f8;
-      padding: 20px;
-      border-radius: 8px;
-      margin-top: 25px;
-    }
-
-    .footer {
-      margin-top: 30px;
-      font-size: 14px;
-      color: #666;
-    }
+    h1 { color: #163a63; text-align: center; }
+    .status { text-align: center; font-size: 18px; margin: 25px 0; }
+    .details { display: none; margin-top: 25px; }
+    .row { padding: 12px 0; border-bottom: 1px solid #eee; }
+    .label { font-weight: bold; color: #555; }
+    .value { float: right; text-align: right; }
+    .clearfix::after { content: ""; display: table; clear: both; }
+    .success { color: #187a43; }
+    .pending { color: #b77900; }
+    .error { color: #b42318; }
+    .footer { text-align: center; margin-top: 30px; color: #777; font-size: 14px; }
   </style>
 </head>
-
 <body>
-
   <div class="container">
+    <h1>Coach Shaun Hockey Academy</h1>
+    <div id="status" class="status">Checking your payment...</div>
 
-    <div class="success">&#10004;</div>
-
-    <h1>Thank You!</h1>
-
-    <p>
-      Thank you for booking with Coach Shaun Hockey Academy.
-      Your payment is being verified by our system.
-    </p>
-
-    <div class="details">
-
-      <h3>What's Next?</h3>
-
-      <p>
-        Once your payment has been verified, your booking
-        will be confirmed.
-      </p>
-
-      <p>
-        You will receive confirmation of your session
-        once the payment verification process is complete.
-      </p>
-
+    <div id="details" class="details">
+      <div class="row clearfix"><span class="label">Player</span><span class="value" id="child"></span></div>
+      <div class="row clearfix"><span class="label">Coach</span><span class="value" id="coach"></span></div>
+      <div class="row clearfix"><span class="label">Venue</span><span class="value" id="venue"></span></div>
+      <div class="row clearfix"><span class="label">Date</span><span class="value" id="date"></span></div>
+      <div class="row clearfix"><span class="label">Time</span><span class="value" id="time"></span></div>
+      <div class="row clearfix"><span class="label">Amount</span><span class="value" id="amount"></span></div>
+      <div class="row clearfix"><span class="label">Payment</span><span class="value success" id="payment"></span></div>
     </div>
-
-    <p>
-      If you have any questions about your booking,
-      please contact Coach Shaun Hockey Academy.
-    </p>
 
     <div class="footer">
-      Coach Shaun Hockey Academy
+      <p>Please keep this page for your records.</p>
+      <p>Coach Shaun Hockey Academy</p>
     </div>
-
   </div>
 
+  <script>
+    const SUPABASE_URL = "https://deplfvlemrvojrrjiutw.supabase.co";
+    const FUNCTION_URL = SUPABASE_URL + "/functions/v1/payment-confirmation";
+
+    const statusElement = document.getElementById("status");
+    const detailsElement = document.getElementById("details");
+
+    function formatDate(value) {
+      return new Date(value).toLocaleDateString("en-ZA", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    }
+
+    function formatTime(value) {
+      return new Date(value).toLocaleTimeString("en-ZA", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    async function loadConfirmation() {
+      const token = new URLSearchParams(window.location.search).get("token");
+
+      if (!token) {
+        statusElement.textContent = "We couldn't find your booking reference.";
+        statusElement.className = "status error";
+        return;
+      }
+
+      try {
+        const response = await fetch(FUNCTION_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ token: token })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          statusElement.textContent = data.error || "Unable to retrieve your booking.";
+          statusElement.className = "status error";
+          return;
+        }
+
+        if (!data.success) {
+          statusElement.textContent = "Your payment is being verified. Please allow a few moments and refresh this page.";
+          statusElement.className = "status pending";
+          return;
+        }
+
+        statusElement.textContent = "Payment Confirmed! Your booking is secured.";
+        statusElement.className = "status success";
+
+        document.getElementById("child").textContent = data.child_name;
+        document.getElementById("coach").textContent = data.coach_name;
+        document.getElementById("venue").textContent = data.venue_name;
+        document.getElementById("date").textContent = formatDate(data.session_start);
+        document.getElementById("time").textContent =
+          formatTime(data.session_start) + " - " + formatTime(data.session_end);
+        document.getElementById("amount").textContent =
+          data.currency + " " + Number(data.amount).toFixed(2);
+        document.getElementById("payment").textContent = "Paid";
+
+        detailsElement.style.display = "block";
+      } catch (error) {
+        statusElement.textContent = "We couldn't connect to the booking system. Please refresh this page.";
+        statusElement.className = "status error";
+      }
+    }
+
+    loadConfirmation();
+  </script>
 </body>
 </html>
